@@ -704,3 +704,4 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
 }
 
 export default WeatherMap
+
