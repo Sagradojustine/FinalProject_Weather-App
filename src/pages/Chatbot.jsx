@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 // Chatbot.jsx
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Minimize2, Maximize2, User, Sparkles, Loader2, MapPin, Wind, AlertTriangle, Cloud, Thermometer } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
@@ -139,8 +139,8 @@ function Chatbot({ weatherData = null, airQualityData = null, mapAlertData = [],
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Memoize context update function
-  const updateContext = useCallback(() => {
+  // Update context when props change
+  useEffect(() => {
     const newContext = {
       currentWeather: weatherData,
       airQuality: airQualityData,
@@ -148,27 +148,18 @@ function Chatbot({ weatherData = null, airQualityData = null, mapAlertData = [],
       userLocation: locationData
     };
     
-    // Only update if something actually changed
-    setContextData(prev => {
-      // Simple deep comparison
-      const hasChanged = 
-        prev.currentWeather !== newContext.currentWeather ||
-        prev.airQuality !== newContext.airQuality ||
-        prev.mapAlerts !== newContext.mapAlerts ||
-        prev.userLocation !== newContext.userLocation;
-      
-      if (hasChanged) {
-        updateChatbotContext(newContext);
-        return newContext;
-      }
-      return prev;
-    });
-  }, [weatherData, airQualityData, mapAlertData, locationData]);
-
-  // Update context when props change
-  useEffect(() => {
-    updateContext();
-  }, [updateContext]);
+    // Check if context actually changed
+    const hasChanged = 
+      contextData.currentWeather !== newContext.currentWeather ||
+      contextData.airQuality !== newContext.airQuality ||
+      contextData.mapAlerts !== newContext.mapAlerts ||
+      contextData.userLocation !== newContext.userLocation;
+    
+    if (hasChanged) {
+      setContextData(newContext);
+      updateChatbotContext(newContext);
+    }
+  }, [weatherData, airQualityData, mapAlertData, locationData, contextData]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
