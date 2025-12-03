@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 
 import React, { useState, useEffect } from 'react'
@@ -18,10 +19,11 @@ import {
   Send,
   Shield,
   X,
-  Navigation
+  Navigation,
+  User // Added import
 } from 'lucide-react'
 import NotificationCenter from './NotificationCenter'
-import Chatbot from './Chatbot' // Added import
+import Chatbot from './Chatbot'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -37,6 +39,9 @@ L.Icon.Default.mergeOptions({
   iconUrl: markerIcon,
   shadowUrl: markerShadow
 })
+
+// Import SOS service (you'll need to create this)
+// import sosService from '../services/sosService'
 
 function AdminDashboard() {
   const { admin, adminSignOut, isAuthenticated } = useAdminAuth()
@@ -191,8 +196,8 @@ function AdminDashboard() {
   }, [showMapModal])
 
   // Mock data functions (replace with actual API calls)
-  const fetchSOSAlerts = async () => {
-    // Mock data
+  const fetchSOSAlerts = async (status = null) => {
+    // Mock data with different statuses for filtering demo
     const mockAlerts = [
       {
         id: 1,
@@ -203,20 +208,58 @@ function AdminDashboard() {
         created_at: new Date().toISOString(),
         is_marked_location: true,
         marked_location_name: 'Central Park',
-        marked_location_description: 'Near the fountain'
+        marked_location_description: 'Near the fountain',
+        admin_response: null,
+        responded_at: null,
+        admin_id: null
       },
       {
         id: 2,
         user_email: 'user2@example.com',
         latitude: 34.0522,
         longitude: -118.2437,
-        status: 'resolved',
+        status: 'responded',
         created_at: new Date(Date.now() - 3600000).toISOString(),
+        is_marked_location: false,
         admin_response: 'Help is on the way',
-        responded_at: new Date().toISOString()
+        responded_at: new Date().toISOString(),
+        admin_id: admin?.id
+      },
+      {
+        id: 3,
+        user_email: 'user3@example.com',
+        latitude: 41.8781,
+        longitude: -87.6298,
+        status: 'resolved',
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+        is_marked_location: true,
+        marked_location_name: 'Millennium Park',
+        marked_location_description: 'Cloud Gate sculpture area',
+        admin_response: 'Emergency services dispatched',
+        responded_at: new Date(Date.now() - 3600000).toISOString(),
+        admin_id: admin?.id
       }
     ]
-    setSosAlerts(mockAlerts)
+    
+    // Filter by status if provided
+    let filteredAlerts = mockAlerts
+    if (status) {
+      filteredAlerts = mockAlerts.filter(alert => alert.status === status)
+    }
+    
+    setSosAlerts(filteredAlerts)
+    
+    // For real implementation, uncomment this:
+    /*
+    try {
+      const result = await sosService.getSOSAlerts(status);
+      if (result.success) {
+        setSosAlerts(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching SOS alerts:', error);
+    }
+    */
   }
 
   const fetchAnnouncements = async () => {
@@ -273,20 +316,39 @@ function AdminDashboard() {
   }
 
   const resolveSOS = async (alertId) => {
+    // Mock implementation
     setSosAlerts(alerts => 
       alerts.map(alert => 
         alert.id === alertId ? { ...alert, status: 'resolved' } : alert
       )
     )
+    
+    // For real implementation, uncomment this:
+    /*
+    try {
+      const result = await sosService.resolveSOS(alertId);
+      if (result.success) {
+        setSosAlerts(prev =>
+          prev.map(alert =>
+            alert.id === alertId ? result.data : alert
+          )
+        );
+        alert('SOS marked as resolved');
+      }
+    } catch (error) {
+      console.error('Error resolving SOS:', error);
+      alert('Failed to resolve SOS');
+    }
+    */
   }
 
   const sendAdminResponse = async (alertId) => {
-    if (!adminResponse.trim()) return
+    if (!adminResponse.trim()) {
+      alert('Please enter a response')
+      return
+    }
 
-    // In a real implementation, you would update the database here
-    // For now, we'll simulate the update and notification
-    
-    // Update the alert in local state
+    // Mock implementation
     setSosAlerts(alerts =>
       alerts.map(alert =>
         alert.id === alertId
@@ -294,12 +356,41 @@ function AdminDashboard() {
               ...alert,
               admin_response: adminResponse,
               responded_at: new Date().toISOString(),
-              status: 'responded'
+              status: 'responded',
+              admin_id: admin?.id
             }
           : alert
       )
     )
 
+    // For real implementation, uncomment this:
+    /*
+    try {
+      const result = await sosService.respondToSOS(
+        alertId,
+        admin.id,
+        adminResponse
+      );
+
+      if (result.success) {
+        setSosAlerts(prev =>
+          prev.map(alert =>
+            alert.id === alertId ? result.data : alert
+          )
+        );
+
+        alert('Response sent successfully!');
+        setAdminResponse('');
+        setSelectedAlert(null);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error sending response:', error);
+      alert('Failed to send response: ' + error.message);
+    }
+    */
+    
     // Send notification to user (mock implementation)
     const alertToRespond = sosAlerts.find(a => a.id === alertId)
     if (alertToRespond) {
@@ -349,6 +440,16 @@ function AdminDashboard() {
     )
   }
 
+  // Helper functions
+  const openInMaps = (lat, lon) => {
+    window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank')
+  }
+
+  const copyLocation = (lat, lon) => {
+    navigator.clipboard.writeText(`${lat}, ${lon}`)
+    alert('Location copied to clipboard')
+  }
+
   useEffect(() => {
     fetchSOSAlerts()
     fetchAnnouncements()
@@ -358,8 +459,55 @@ function AdminDashboard() {
 
   useEffect(() => {
     updateUnreadCount()
+  }, [userRequests])
 
-  }, [updateUnreadCount, userRequests])
+  // Add real-time subscription for SOS alerts
+  useEffect(() => {
+    let unsubscribe
+
+    // Mock subscription - in real implementation, uncomment the service call
+    const mockSubscription = () => {
+      // Simulate real-time updates (remove in production)
+      const interval = setInterval(() => {
+        // In real app, this would be from WebSocket or Supabase Realtime
+      }, 30000)
+      
+      return () => clearInterval(interval)
+    }
+
+    if (admin?.id) {
+      unsubscribe = mockSubscription()
+      
+      // For real implementation, uncomment this:
+      /*
+      unsubscribe = sosService.subscribeToSOSAlerts((payload) => {
+        if (payload.eventType === 'INSERT') {
+          // New SOS alert - add to top
+          setSosAlerts(prev => [payload.new, ...prev]);
+          
+          // Show browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('New SOS Alert', {
+              body: `User ${payload.new.user_email} needs help!`,
+              icon: '/sos-icon.png'
+            });
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          // Update existing alert
+          setSosAlerts(prev =>
+            prev.map(alert =>
+              alert.id === payload.new.id ? payload.new : alert
+            )
+          );
+        }
+      });
+      */
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [admin?.id])
 
   if (!isAuthenticated()) {
     return (
@@ -442,37 +590,80 @@ function AdminDashboard() {
 
         {/* Tab Content */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          {/* SOS Alerts */}
+          {/* SOS Alerts - Updated Section */}
           {activeTab === 'sos' && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Emergency SOS Alerts</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Emergency SOS Alerts</h2>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => fetchSOSAlerts('active')}
+                    className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm hover:bg-red-200 transition duration-200"
+                  >
+                    Active
+                  </button>
+                  <button
+                    onClick={() => fetchSOSAlerts('responded')}
+                    className="bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-200 transition duration-200"
+                  >
+                    Responded
+                  </button>
+                  <button
+                    onClick={() => fetchSOSAlerts('resolved')}
+                    className="bg-green-100 text-green-700 px-3 py-1 rounded text-sm hover:bg-green-200 transition duration-200"
+                  >
+                    Resolved
+                  </button>
+                  <button
+                    onClick={() => fetchSOSAlerts()}
+                    className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition duration-200"
+                  >
+                    All
+                  </button>
+                </div>
+              </div>
               <div className="space-y-4">
                 {sosAlerts.map((alert) => (
                   <div key={alert.id} className={`p-4 rounded-lg border ${
-                    alert.status === 'active' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
+                    alert.status === 'active' ? 'bg-red-50 border-red-200' :
+                    alert.status === 'responded' ? 'bg-blue-50 border-blue-200' :
+                    'bg-green-50 border-green-200'
                   }`}>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
+                          <div className="relative">
+                            <User className="h-5 w-5 text-gray-500" />
+                            {alert.status === 'active' && (
+                              <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full animate-ping"></span>
+                            )}
+                          </div>
                           <h3 className="font-bold text-gray-900">{alert.user_email}</h3>
                           {alert.is_marked_location && (
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
                               From Marked Location: {alert.marked_location_name}
                             </span>
                           )}
+                          {alert.status === 'active' && (
+                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs animate-pulse">
+                              URGENT - NEEDS RESPONSE
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-600">
-                          {new Date(alert.created_at).toLocaleString()}
+                          <strong>Time:</strong> {new Date(alert.created_at).toLocaleString()}
                         </p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Location: {alert.latitude.toFixed(4)}, {alert.longitude.toFixed(4)}
+                        <p className="text-sm text-gray-600">
+                          <strong>Location:</strong> {alert.latitude.toFixed(6)}, {alert.longitude.toFixed(6)}
                         </p>
                         {alert.marked_location_description && (
                           <p className="text-sm text-gray-700 mt-2">
                             <strong>Location Description:</strong> {alert.marked_location_description}
                           </p>
                         )}
-                        {alert.admin_response && (
+                        
+                        {/* Admin Response Section */}
+                        {alert.admin_response ? (
                           <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
                             <div className="flex items-center space-x-2 mb-1">
                               <MessageSquare className="h-4 w-4 text-blue-600" />
@@ -481,6 +672,16 @@ function AdminDashboard() {
                             <p className="text-blue-700">{alert.admin_response}</p>
                             <p className="text-blue-600 text-xs mt-1">
                               Responded: {new Date(alert.responded_at).toLocaleString()}
+                            </p>
+                            {alert.admin_id === admin?.id && (
+                              <span className="text-xs text-purple-600">(Your response)</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200">
+                            <p className="text-yellow-700 text-sm">
+                              <AlertTriangle className="h-4 w-4 inline mr-1" />
+                              No response yet. Please respond to the user.
                             </p>
                           </div>
                         )}
@@ -506,21 +707,48 @@ function AdminDashboard() {
                               onClick={() => resolveSOS(alert.id)}
                               className="bg-gray-600 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 transition duration-200"
                             >
-                              Resolve
+                              Mark Resolved
                             </button>
                           </>
                         )}
+                        {alert.status === 'responded' && (
+                          <button
+                            onClick={() => resolveSOS(alert.id)}
+                            className="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition duration-200"
+                          >
+                            Mark Resolved
+                          </button>
+                        )}
+                        <button
+                          onClick={() => copyLocation(alert.latitude, alert.longitude)}
+                          className="flex items-center space-x-1 bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700 transition duration-200"
+                        >
+                          <span>Copy Location</span>
+                        </button>
                       </div>
                     </div>
-                    <div className={`inline-block px-2 py-1 rounded text-xs font-medium mt-2 ${
-                      alert.status === 'active' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
-                    }`}>
-                      {alert.status.toUpperCase()}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        alert.status === 'active' ? 'bg-red-200 text-red-800' :
+                        alert.status === 'responded' ? 'bg-blue-200 text-blue-800' :
+                        'bg-green-200 text-green-800'
+                      }`}>
+                        {alert.status.toUpperCase()}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Alert ID: {alert.id}
+                      </p>
                     </div>
                   </div>
                 ))}
                 {sosAlerts.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No SOS alerts</p>
+                  <div className="text-center py-12">
+                    <AlertTriangle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 text-lg">No SOS alerts found</p>
+                    <p className="text-gray-400 text-sm mt-2">
+                      All clear! No emergency alerts at the moment.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -654,7 +882,7 @@ function AdminDashboard() {
                           {new Date(user.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {sosAlerts.filter(alert => alert.user_id === user.id).length}
+                          {sosAlerts.filter(alert => alert.user_email === user.email).length}
                         </td>
                       </tr>
                     ))}
