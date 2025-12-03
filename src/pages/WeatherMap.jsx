@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 // WeatherMap.jsx
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { MapPin, Navigation, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { MapPin, Navigation, AlertTriangle, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../services/supabase' // Adjust this import based on your project structure
 
 function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations = [], userId }) {
@@ -14,7 +14,8 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
   const [savedLocations, setSavedLocations] = useState([])
   const [loading, setLoading] = useState(false)
   const [locationName, setLocationName] = useState('')
-  const [showSaveForm, setShowSaveForm] = useState(false)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showSavedLocationsModal, setShowSavedLocationsModal] = useState(false)
 
   useEffect(() => {
     setMapLoaded(true)
@@ -72,8 +73,10 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
 
       if (data) {
         setSavedLocations(prev => [data, ...prev])
-        setShowSaveForm(false)
+        setShowSaveModal(false)
         setLocationName('')
+        setClickedLocation(null)
+        setMarkerMode(false)
         
         // Add the new location to the map
         if (mapInstanceRef.current) {
@@ -306,7 +309,7 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
           }
           
           setClickedLocation(newLocation)
-          setShowSaveForm(true)
+          setShowSaveModal(true)
           
           // Add temporary marker
           const tempMarker = L.marker([e.latlng.lat, e.latlng.lng], {
@@ -398,7 +401,7 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
     setMarkerMode(prev => !prev)
     // Clear any clicked location state
     setClickedLocation(null)
-    setShowSaveForm(false)
+    setShowSaveModal(false)
   }, [])
 
   const handleSaveLocation = () => {
@@ -439,16 +442,26 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
         </h3>
         <div className="flex gap-2">
           {userId && (
-            <button
-              onClick={handleMarkerModeToggle}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
-                markerMode 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {markerMode ? 'Cancel Marking' : 'Mark Location'}
-            </button>
+            <>
+              <button
+                onClick={handleMarkerModeToggle}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                  markerMode 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {markerMode ? 'Cancel Marking' : 'Mark Location'}
+              </button>
+              {savedLocations.length > 0 && (
+                <button
+                  onClick={() => setShowSavedLocationsModal(true)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition duration-200"
+                >
+                  View Saved Locations
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -466,45 +479,6 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
                   <MapPin className="h-4 w-4" />
                   Click on map to mark location
                 </p>
-              </div>
-            )}
-            {showSaveForm && clickedLocation && (
-              <div className="absolute top-4 right-4 bg-white p-4 rounded-lg z-[1000] shadow-lg w-80">
-                <h4 className="font-medium mb-2">Save Location</h4>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={locationName}
-                    onChange={(e) => setLocationName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter location name"
-                    disabled={loading}
-                  />
-                </div>
-                <div className="text-sm text-gray-600 mb-3">
-                  Coordinates: {clickedLocation.latitude.toFixed(4)}, {clickedLocation.longitude.toFixed(4)}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveLocation}
-                    disabled={loading}
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? 'Saving...' : 'Save Location'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowSaveForm(false)
-                      setClickedLocation(null)
-                    }}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </div>
             )}
           </>
@@ -568,44 +542,161 @@ function WeatherMap({ location, sosAlerts = [], onLocationMark, markedLocations 
         </div>
       </div>
 
-      {/* Saved Locations List */}
-      {savedLocations.length > 0 && (
-        <div className="mt-6">
-          <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            Your Saved Locations
-          </h4>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {savedLocations.map((loc) => (
-              <div key={loc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <div className="font-medium">{loc.name}</div>
-                  <div className="text-sm text-gray-600">
-                    {loc.lat.toFixed(4)}, {loc.lon.toFixed(4)}
-                    {loc.country && ` • ${loc.country}`}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Saved: {new Date(loc.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteLocation(loc.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-full"
-                  title="Delete location"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {markerMode && (
         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
           <p className="text-sm text-blue-700">
             <strong>Note:</strong> Click anywhere on the map to save a location. You'll be prompted to give it a name.
           </p>
+        </div>
+      )}
+
+      {/* Save Location Modal */}
+      {showSaveModal && clickedLocation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-900">Save Location</h3>
+              <button
+                onClick={() => {
+                  setShowSaveModal(false)
+                  setClickedLocation(null)
+                  setLocationName('')
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Location Name *
+                </label>
+                <input
+                  type="text"
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter a name for this location"
+                  disabled={loading}
+                  autoFocus
+                />
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium">Coordinates</span>
+                </div>
+                <div className="text-gray-700">
+                  Latitude: <span className="font-mono">{clickedLocation.latitude.toFixed(6)}</span>
+                </div>
+                <div className="text-gray-700">
+                  Longitude: <span className="font-mono">{clickedLocation.longitude.toFixed(6)}</span>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveLocation}
+                  disabled={loading || !locationName.trim()}
+                  className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200 font-medium"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </span>
+                  ) : 'Save Location'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSaveModal(false)
+                    setClickedLocation(null)
+                    setLocationName('')
+                  }}
+                  className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-200 font-medium"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Locations Modal */}
+      {showSavedLocationsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[2000] p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-green-500" />
+                Your Saved Locations ({savedLocations.length})
+              </h3>
+              <button
+                onClick={() => setShowSavedLocationsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {savedLocations.length === 0 ? (
+                <div className="text-center py-8">
+                  <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No saved locations yet.</p>
+                  <p className="text-sm text-gray-400 mt-2">Use the "Mark Location" button to save locations.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedLocations.map((loc) => (
+                    <div key={loc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition duration-200">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div className="font-semibold text-gray-900">{loc.name}</div>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-1">
+                          <span className="font-mono">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
+                          {loc.country && <span className="ml-2">• {loc.country}</span>}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Saved on {new Date(loc.created_at).toLocaleDateString()} at {new Date(loc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteLocation(loc.id)}
+                        className="ml-4 p-2 text-red-500 hover:bg-red-50 rounded-lg transition duration-200"
+                        title="Delete location"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="border-t p-4">
+              <button
+                onClick={() => {
+                  setShowSavedLocationsModal(false)
+                  handleMarkerModeToggle()
+                }}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 font-medium"
+              >
+                <Plus className="h-5 w-5 inline mr-2" />
+                Mark New Location
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
